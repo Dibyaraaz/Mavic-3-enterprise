@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid Drone Control</title>
+    <style>
+        body { font-family: sans-serif; background-color: #121212; color: #eee; text-align: center; padding: 20px; }
+        .card { background-color: #1e1e1e; padding: 20px; border-radius: 12px; margin: 20px auto; max-width: 600px; }
+        .btn { padding: 15px; font-size: 18px; width: 45%; margin: 5px; border: none; border-radius: 8px; cursor: pointer; }
+        .takeoff { background-color: #2196F3; color: white; }
+        .land { background-color: #FF9800; color: white; }
+        h1 { font-size: 40px; margin: 10px 0; color: #4CAF50; }
+        table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+        th, td { padding: 10px; border-bottom: 1px solid #444; text-align: left; }
+        th { color: #aaa; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <p>Current Altitude</p>
+    <h1 id="altDisplay">0.0 m</h1>
+    <p id="status">Ready</p>
+
+    <button class="btn takeoff" onclick="sendCommand('takeoff')">🛫 TAKEOFF</button>
+    <button class="btn land" onclick="sendCommand('landing')">🛬 LAND</button>
+</div>
+
+<div class="card">
+    <h3>Flight History</h3>
+    <button class="btn" style="background:#333; color:white; width:100%" onclick="loadHistory()">🔄 Refresh Logs</button>
+    <table id="historyTable">
+        <tr><th>Date</th><th>Dur (s)</th><th>Max Alt</th></tr>
+    </table>
+</div>
+
+<script>
+    const isRemoteMode = !window.AndroidDrone;
+
+    if (isRemoteMode) {
+        setInterval(() => {
+            fetch('/api/status').then(r => r.text()).then(d => {
+                document.getElementById('altDisplay').innerText = d + " m";
+            });
+        }, 500);
+    }
+
+    function sendCommand(action) {
+        if (!isRemoteMode) {
+            if(action === 'takeoff') window.AndroidDrone.performTakeoff();
+            if(action === 'landing') window.AndroidDrone.performLanding();
+        } else {
+            fetch('/api/' + action).then(r => r.text()).then(t => document.getElementById('status').innerText = t);
+        }
+    }
+
+    function updateAltitude(alt) { document.getElementById('altDisplay').innerText = alt.toFixed(2) + " m"; }
+    function updateStatus(msg) { document.getElementById('status').innerText = msg; }
+
+    // 🔴 Load History from Database
+    function loadHistory() {
+        // Logic: Even if on RC Pro, we can use the local server API to get JSON easily
+        fetch('/api/history')
+            .then(response => response.json())
+            .then(data => {
+                let table = document.getElementById("historyTable");
+                // Clear old rows except header
+                table.innerHTML = "<tr><th>Date</th><th>Dur (s)</th><th>Max Alt</th></tr>";
+
+                data.forEach(log => {
+                    let row = table.insertRow();
+                    row.insertCell(0).innerText = log.date;
+                    row.insertCell(1).innerText = log.durationSeconds + "s";
+                    row.insertCell(2).innerText = log.maxAltitude.toFixed(1) + "m";
+                });
+            })
+            .catch(err => alert("Failed to load logs: " + err));
+    }
+</script>
+</body>
+</html>
